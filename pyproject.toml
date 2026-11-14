@@ -1,0 +1,40 @@
+[project]
+name = "contentmoderration-service"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
+  "onnxruntime>=1.20",
+  "numpy",
+  "pillow",
+  "scipy",
+  "tokenizers",
+  "pyyaml",
+]
+
+[dependency-groups]
+tools = [
+  "torch",
+  "torchvision",
+  "transformers>=4.57",
+  "onnx",
+  "onnxscript",
+  "safetensors",
+  "huggingface_hub",
+  "accelerate",
+]
+dev = ["pytest", "httpx", "psutil", "scikit-learn", "tqdm", "num2words"]
+
+[tool.uv]
+default-groups = []   # без этого `uv sync` без флагов тянет группу "dev" неявно (uv её считает default)
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

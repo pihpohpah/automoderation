@@ -1,0 +1,13 @@
+.venv
+.uv-cache
+models
+artifacts/fp32
+artifacts/int8
+artifacts/w8
+artifacts/q4
+artifacts/smolvlm_fp32
+artifacts/smolvlm_w8
+dataset
+__pycache__
+tests
+tools

@@ -1,0 +1,8 @@
+.venv/
+.uv-cache/
+.claude/
+models/
+dataset/
+artifacts/
+__pycache__/
+*.pyc
