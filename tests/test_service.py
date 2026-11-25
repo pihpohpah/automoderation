@@ -1,4 +1,4 @@
-"""Тесты: препроцессинг (юнит) и API (нужны артефакты: ARTIFACTS_DIR или artifacts/int8)."""
+"""Тесты: препроцессинг (юнит) и API (нужны артефакты: ARTIFACTS_DIR или artifacts/smolvlm_int8)."""
 import io, os, sys
 from pathlib import Path
 import numpy as np, pytest

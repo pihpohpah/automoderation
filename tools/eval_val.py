@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Оценка качества ONNX-артефактов на val.jsonl: AUC/AP по категориям + накладные от квантования.
 
-    python -m tools.eval_val --artifacts artifacts/int8 --dataset ../contentmoderration/dataset --limit 300
-    python -m tools.eval_val --artifacts artifacts/int8 --ref artifacts/fp32 ...   # сравнить с fp32-ONNX
-Используйте с реальным checkpoint.pt (экспорт с --checkpoint), иначе голова случайная и метрики бессмысленны.
+    python -m tools.eval_val --artifacts artifacts/smolvlm_int8 --dataset dataset --limit 300
+    python -m tools.eval_val --artifacts artifacts/smolvlm_int8 --ref artifacts/smolvlm_fp32 ...   # сравнить с fp32-ONNX
 """
 import argparse, json, sys, time
 from pathlib import Path

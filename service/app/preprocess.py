@@ -2,9 +2,8 @@
 
 Что здесь делается:
   * resize картинки ровно в image_size x image_size (do_image_splitting=False в train_vlm.py —
-    без тайлинга на под-изображения, без паддинга: каждая картинка занимает весь патч-грид,
-    поэтому в отличие от Qwen3.5-VL тут не нужна ни bucketize-интерполяция позиционных
-    эмбеддингов, ни attention-маска для vision-энкодера);
+    без тайлинга на под-изображения и без паддинга: каждая картинка занимает весь патч-грид,
+    поэтому vision-энкодеру не нужны ни интерполяция позиционных эмбеддингов, ни attention-маска);
   * нормализация (mean=std=0.5, как у SmolVLMImageProcessor);
   * одномерный RoPE (без M-RoPE — image-токены получают обычные последовательные позиции);
   * 9 CV-признаков (должны совпадать с compute_cv_features из train_vlm.py).
@@ -19,9 +18,9 @@ from PIL import Image
 
 def resize_to_square(img: Image.Image, image_size: int = 512, longest_edge_cap: int = 2048) -> Image.Image:
     """Как SmolVLMImageProcessor: (1) безусловный аспект-сохраняющий ресайз так, чтобы длинная
-    сторона стала РОВНО longest_edge_cap (это не "cap если больше" — маленькие фото тоже
-    апскейлятся; см. _resize_output_size_rescale_to_max_len), затем (2) do_image_splitting=False
-    -> squash-ресайз в image_size x image_size (без сохранения аспекта). Оба шага — LANCZOS."""
+    сторона стала ровно longest_edge_cap, даже если фото меньше (см. _resize_output_size_rescale_to_max_len),
+    затем (2) при do_image_splitting=False squash-ресайз в image_size x image_size без сохранения
+    аспекта. Оба шага LANCZOS. Почему это важно: docs/preprocessing.md."""
     img = img.convert("RGB")
     w, h = img.size
     aspect = w / h
@@ -52,10 +51,10 @@ def image_to_pixel_values(img: Image.Image, image_size: int = 512,
 
 def build_prompt_string(text: str, n_images: int, tokens_per_image: int) -> str:
     """Строка промпта как у SmolVLMProcessor.apply_chat_template(do_image_splitting=False) для
-    одного сообщения role=user (без add_generation_prompt). Токенизировать нужно ОДНИМ вызовом
+    одного сообщения role=user (без add_generation_prompt). Токенизировать нужно одним вызовом
     encode() на весь результат: граница между "User:"/"User: " и текстом пользователя проходит по
-    обычным (не спец-) символам, и BPE должен иметь возможность слить, например, пробел с первым
-    байтом кириллицы — раздельная токенизация кусков даёт другие id и портит hidden state."""
+    обычным (не спец-) символам, и BPE должен слить, например, пробел с первым байтом кириллицы.
+    Раздельная токенизация кусков даёт другие id и портит hidden state."""
     if n_images:
         parts = ["<|im_start|>User:"]
         for _ in range(n_images):

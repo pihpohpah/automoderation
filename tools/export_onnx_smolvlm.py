@@ -3,11 +3,10 @@
 
     uv run --group tools python -m tools.export_onnx_smolvlm --out artifacts/smolvlm_fp32
 
-В отличие от tools/export_onnx.py (Qwen3.5-VL + LoRA): модель дообучена целиком (train_vlm.py,
-без LoRA), архитектура стандартная (SigLIP vision + VLlama3 = обычный Llama с GQA), поэтому
-экспорт — прямой перенос формул (tools/wrappers_smolvlm.py), без M-RoPE/Gated DeltaNet/chunking.
+Модель дообучена целиком (train_vlm.py, без LoRA), архитектура стандартная: SigLIP vision + VLlama3
+(обычный Llama с GQA). Экспорт переносит формулы из transformers напрямую (tools/wrappers_smolvlm.py).
 
-Артефакты в --out — те же имена, что у Qwen-пайплайна (совместимо с tools.quantize):
+Артефакты в --out (их же читают tools.quantize и service/app):
   vision.onnx(+.data)   pixel_values[N,3,image_size,image_size] -> image_embeds[N*tokens_per_image, hidden]
   lm.onnx(+.data)       inputs_embeds[1,T,hidden], cos/sin[T,head_dim] -> hidden[1,hidden] (последний токен)
   embed_tokens.npy      fp16 [vocab, hidden]

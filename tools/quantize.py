@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Квантование ONNX-артефактов (веса MatMul/Gemm; активации остаются fp32 — либо dynamic int8).
 
-    python -m tools.quantize --src artifacts/fp32 --dst artifacts/int8 --mode int8
-    python -m tools.quantize --src artifacts/fp32 --dst artifacts/q4   --mode q4 --block-size 64
+    python -m tools.quantize --src artifacts/smolvlm_fp32 --dst artifacts/smolvlm_int8 --mode lm=w8,vision=int8 --embed int8
+    python -m tools.quantize --src artifacts/smolvlm_fp32 --dst artifacts/smolvlm_q4   --mode q4 --block-size 64
 
 Режимы:
   int8  — onnxruntime quantize_dynamic: веса int8 (per-channel), активации квантуются на лету (uint8).
@@ -81,8 +81,8 @@ def quantize_embeddings_int8(src: Path, dst: Path) -> None:
 
 def _parse_mode(mode_arg: str, parts: list[str]) -> dict[str, str]:
     """--mode int8 -> один режим на все --parts; --mode lm=w8,vision=int8 -> раздельно по частям
-    (нужно, когда динамическое квантование активаций ломает один граф сильнее другого — см. README:
-    на SmolVLM2 динамический int8 даёт cos(hidden)~0.70 на lm, но ~0.95 на vision; w8 чинит lm)."""
+    (динамический int8 на SmolVLM2 даёт cos(hidden) ~0.70 на lm и 0.88-0.98 на vision, w8 чинит lm;
+    см. docs/quantization.md)."""
     if "=" not in mode_arg:
         return {p: mode_arg for p in parts}
     out = {}
@@ -97,7 +97,7 @@ def _parse_mode(mode_arg: str, parts: list[str]) -> dict[str, str]:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", default="artifacts/fp32")
+    ap.add_argument("--src", default="artifacts/smolvlm_fp32")
     ap.add_argument("--dst", required=True)
     ap.add_argument("--mode", default="int8",
                     help="int8|w8|q4 (один режим на все --parts) либо раздельно: lm=w8,vision=int8")

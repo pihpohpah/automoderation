@@ -1,13 +1,13 @@
 """ONNX-friendly torch-обёртки над SmolVLM2-256M (Idefics3 vision + connector, VLlama3 language model).
 
-В отличие от Qwen3.5-VL (tools/wrappers.py), архитектура полностью стандартная:
+Архитектура стандартная:
   * vision — обычный SigLIP ViT с learned position embedding (без rope, без динамической
     интерполяции): train_vlm.py обучал с `do_image_splitting=False`, поэтому каждая картинка
     ресайзится ровно в image_size x image_size и patch_attention_mask всегда полностью true —
-    positional embedding сводится к тождественному сложению с таблицей в растровом порядке;
-  * язык — VLlama3 = обычный Llama с GQA-attention и одномерным RoPE (без M-RoPE), без Gated
-    DeltaNet. Нужен только prefill целиком (hidden state последнего токена), KV-кэш не нужен.
-Поэтому экспорт — прямой перенос формул из transformers, без chunked-трюков Qwen-пайплайна.
+    positional embedding сводится к сложению с таблицей в растровом порядке;
+  * язык: VLlama3, то есть обычный Llama с GQA-attention и одномерным RoPE. Нужен только prefill
+    целиком (hidden state последнего токена), без KV-кэша.
+Поэтому формулы переносятся из transformers напрямую.
 """
 from __future__ import annotations
 

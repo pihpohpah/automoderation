@@ -12,33 +12,25 @@
 #   "tqdm",
 # ]
 # ///
-"""Полный (не LoRA) finetune SmolVLM-256M под мультилейбл-классификацию модерации (text+images).
+"""Полный fine-tune SmolVLM-256M (без LoRA) под мультилейбл-классификацию модерации (текст + фото).
 
-Та же логика, что в train_lora.py (см. обсуждение в чате), адаптированная под маленькую
-модель со стандартной архитектурой (Llama-бэкбон + SigLIP-энкодер, без экзотики вроде
-гибридного linear attention в Qwen3.5 — поэтому не нужны particular CUDA-кернели и не
-нужна LoRA, чтобы не повредить память: 256M целиком дообучается напрямую):
-  - база (SmolVLMForConditionalGeneration) ПОЛНОСТЬЮ обучаема — в отличие от train_lora.py,
-    тут нет замороженного визуального энкодера: модель достаточно маленькая, чтобы full
-    finetune был дешевле и, вероятно, качественнее LoRA-адаптера поверх гиганта;
-  - классификационная голова: Linear(hidden_size + n_cv_features -> 4) поверх hidden state
-    последнего не-пад токена, обучается с нуля вместе с остальной моделью;
-  - CV-признаки (блюр/яркость/контраст/энтропия) считаются на ОРИГИНАЛЬНОМ фото, до любого
-    даунскейла под модель — та же причина, что в train_lora.py: ресайз смазывает именно тот
-    сигнал, ради которого эти признаки существуют (детекция junk);
-  - лосс: BCEWithLogitsLoss с pos_weight на класс (тот же дисбаланс dangerous/spam/junk/mismatch).
+  - Обучается вся SmolVLMForConditionalGeneration, включая визуальный энкодер: при 256M параметров
+    это дешевле LoRA, и стандартная архитектура (Llama-бэкбон + SigLIP) не требует особых CUDA-кернелей.
+  - Голова Linear(hidden_size + n_cv_features -> 4) поверх hidden state последнего не-пад токена,
+    учится с нуля вместе с моделью.
+  - CV-признаки (блюр, яркость, контраст, энтропия) считаются на исходном фото до даунскейла:
+    ресайз смазывает сигнал, по которому детектится junk.
+  - Лосс BCEWithLogitsLoss с pos_weight по классам (дисбаланс dangerous/spam/junk/mismatch).
 
-Модель лежит в репозитории локально (model_smolvlm256m/) — перенесите эту папку на офлайн-
-сервер так же, как dataset.tar.gz и model/ для Qwen3.5.
+Для офлайн-сервера скопируйте каталог базовой модели (--model-name) вместе с датасетом.
 
 Запуск:
-    python3 train_vlm.py --model-name ./model_smolvlm256m --dataset-dir ./dataset \
+    python3 train_vlm.py --model-name models/SmolVLM2-256M --dataset-dir ./dataset \
         --device cuda --output-dir runs/vlm_v1
     python3 train_vlm.py --max-train-samples 8 --max-val-samples 4 --epochs 1 --batch-size 4  # smoke-test
 
-LR по умолчанию (2e-5) НАМНОГО меньше, чем в train_lora.py (2e-4) — там обучались только
-LoRA-адаптеры поверх замороженной сети, тут обновляются все предобученные веса напрямую,
-большой LR их быстро разрушит (catastrophic forgetting).
+LR по умолчанию 2e-5: обновляются все предобученные веса, и LR уровня LoRA (2e-4) быстро их
+разрушит (catastrophic forgetting).
 """
 from __future__ import annotations
 
@@ -110,9 +102,8 @@ class ModerationDataset(Dataset):
             self.records = self.records[:limit]
         self.dataset_dir = jsonl_path.parent
         self.max_images = max_images
-        # SmolVLM сам ресайзит до max_image_size.longest_edge=512 внутри процессора —
-        # этот внешний даунскейл опционален (экономит время декодирования больших исходников),
-        # не обязателен для памяти, как было с Qwen3.5.
+        # SmolVLM сам ресайзит до max_image_size.longest_edge=512 внутри процессора;
+        # внешний даунскейл только экономит время декодирования больших исходников.
         self.image_max_side = image_max_side
 
     def __len__(self) -> int:
@@ -137,8 +128,7 @@ class ModerationDataset(Dataset):
 
 
 def build_collate_fn(processor):
-    """SmolVLM/Idefics3Processor умеет текст+картинки одним вызовом apply_chat_template —
-    в отличие от Qwen, не нужен отдельный шаг processor(text=..., images=...).
+    """SmolVLM/Idefics3Processor собирает текст и картинки одним вызовом apply_chat_template.
     do_image_splitting=False: тайлинг на под-изображения даёт точность на мелком тексте/OCR,
     не нужную для сцено-уровневой модерации, и резко раздувает число визуальных токенов
     при 2-4 фото на запись."""
@@ -204,10 +194,7 @@ def build_model(model_name: str, gradient_checkpointing: bool):
     base = AutoModelForImageTextToText.from_pretrained(model_name, dtype=torch.bfloat16)
     hidden_size = base.config.text_config.hidden_size
 
-    # Полный finetune: ничего не замораживаем (в отличие от train_lora.py) — модель
-    # достаточно маленькая, чтобы это было дешевле LoRA и адаптировало всю сеть целиком,
-    # включая визуальный энкодер (там, в отличие от Qwen3.5+LoRA-MVP, мы не рискуем
-    # недообучить junk/mismatch из-за заморозки — тут всё учится).
+    # Полный finetune, включая визуальный энкодер: от него зависят junk и mismatch.
     for p in base.parameters():
         p.requires_grad = True
 
@@ -222,10 +209,9 @@ def build_model(model_name: str, gradient_checkpointing: bool):
 
 
 def save_checkpoint(model: ModerationClassifier, path: Path) -> None:
-    """В отличие от train_lora.py (там сохранялись только LoRA A/B + голова), тут модель
-    обучается целиком — сохраняем её как обычный transformers-чекпоинт (save_pretrained,
-    грузится потом напрямую через AutoModelForImageTextToText.from_pretrained(path)),
-    плюс отдельно голову, т.к. она не часть исходной архитектуры SmolVLM."""
+    """Модель сохраняется как обычный transformers-чекпоинт (save_pretrained, грузится через
+    AutoModelForImageTextToText.from_pretrained(path)), голова отдельно в classification_head.pt,
+    т.к. она не часть архитектуры SmolVLM."""
     path.mkdir(parents=True, exist_ok=True)
     model.base_model.save_pretrained(path)
     torch.save(model.head.state_dict(), path / "classification_head.pt")
@@ -351,7 +337,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-dir", default="dataset")
     parser.add_argument("--output-dir", default="runs/vlm_v1")
-    parser.add_argument("--model-name", default="./model_smolvlm256m",
+    parser.add_argument("--model-name", default="models/SmolVLM2-256M",
                          help="HF id или локальный путь к папке с config.json/safetensors/tokenizer")
     parser.add_argument("--max-images", type=int, default=4)
     parser.add_argument(
@@ -362,9 +348,8 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument(
         "--num-workers", type=int, default=4,
-        help="Процессы DataLoader'а для декодирования фото/сборки чат-шаблона параллельно "
-             "с GPU-вычислениями — модель маленькая, иначе CPU-препроцессинг станет узким "
-             "местом вместо самой сети.",
+        help="Процессы DataLoader'а для декодирования фото и сборки чат-шаблона параллельно "
+             "с GPU: модель маленькая, и без них узким местом станет CPU-препроцессинг.",
     )
     parser.add_argument(
         "--gradient-accumulation-steps", type=int, default=1,
@@ -373,7 +358,7 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument(
         "--learning-rate", type=float, default=2e-5,
-        help="Full finetune — LR на порядок меньше, чем для LoRA (2e-4 в train_lora.py).",
+        help="Full finetune: LR на порядок меньше типичного для LoRA (2e-4).",
     )
     parser.add_argument("--gradient-checkpointing", action="store_true")
     parser.add_argument("--max-train-samples", type=int, default=None)

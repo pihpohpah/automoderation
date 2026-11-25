@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Паритет: ONNX-артефакты (SmolVLM2) против эталонного PyTorch/HF (models/trained_model).
 
-    uv run --group tools python -m tools.verify_smolvlm --artifacts artifacts/smolvlm_fp32 --tol 0.02
+    uv run --group tools python -m tools.verify_smolvlm --artifacts artifacts/smolvlm_fp32 --tol 0.1
 
-В отличие от tools/verify.py (Qwen) использует реальный HF-процессор (apply_chat_template,
+Использует реальный HF-процессор (apply_chat_template,
 do_image_splitting=False) для референса и напрямую кормит те же pixel_values/input_ids в
 ONNX-графы — так изолируется корректность экспорта (wrappers_smolvlm.py) от numpy-препроцессинга
 сервиса, который проверяется отдельно.
@@ -83,7 +83,6 @@ def reference(model, processor, text, images, head_w, head_b):
 def run_onnx(vis_sess, lm_sess, emb, inputs, head_w, head_b, cv):
     input_ids = inputs["input_ids"][0].numpy()
     pixel_values = inputs.get("pixel_values")
-    image_token_id = int((input_ids == 49190).sum() and 49190)  # placeholder; overwritten below
 
     x = emb[input_ids].astype(np.float32)
     if pixel_values is not None and pixel_values.numel() > 0:

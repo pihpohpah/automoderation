@@ -5,7 +5,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT)); sys.path.insert(0, str(ROOT / "service"))
 from app.engine import Engine, EngineConfig
-from tools.verify import make_cases
+from tools.verify_smolvlm import make_cases
 
 def main(ref_dir, *dirs):
     cases = make_cases(np.random.default_rng(0))

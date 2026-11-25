@@ -1,9 +1,9 @@
 """FastAPI-приложение автомодерации.
 
 POST /moderate  (multipart/form-data): text (str), images (0..N файлов) -> JSON с вероятностями и вердиктом.
-GET  /health    — готовность (модель загружена и прогрета).
+GET  /health    — живость и RSS процесса (uvicorn принимает запросы только после загрузки и прогрева модели).
 
-Ограничения под 1 CPU / ~1-2 ГБ RAM / ~10 с: инференс строго последовательный (один за раз),
+Ограничения под 1 CPU / 1 ГБ RAM / ~10 с: инференс строго последовательный (один за раз),
 очередь ограничена, общий дедлайн на запрос, лимиты на размер/число картинок.
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ class Settings:
     threads = _env("ORT_THREADS", 1, int)
     warmup = _env("WARMUP", "1") == "1"
     thresholds = {
-        # 0.75 вместо 0.5 — дефолтный порог давал много ложных срабатываний
+        # 0.5 даёт много ложных срабатываний, см. docs/thresholds.md
         "dangerous": _env("THR_DANGEROUS", 0.75, float),
         "spam": _env("THR_SPAM", 0.5, float),
         "junk": _env("THR_JUNK", 0.5, float),
