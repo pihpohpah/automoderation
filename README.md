@@ -110,9 +110,12 @@ pyproject.toml       project.dependencies: рантайм сервиса; depend
 - [docs/preprocessing.md](docs/preprocessing.md): ресайз, токенизация промпта, CV-признаки. Прочитайте до правок в `preprocess.py`.
 - [docs/thresholds.md](docs/thresholds.md): пороги категорий.
 - [docs/benchmarks.md](docs/benchmarks.md): латентность, RSS, паритет с PyTorch, AUC.
+- [docs/deployment.md](docs/deployment.md): ресурсы пода, сетевые доступы, пробы.
 
 ## TODO
 
 - Перемерить латентность под `docker run --cpus=1 --memory=1g` и `tools/bench.py`: текущие замеры сделаны на 4 CPU без лимитов.
 - Прогнать `tools.eval_val` на всём `val.jsonl` (1000 записей), особенно ради `mismatch`: сейчас AUC посчитан на 100.
 - Дообучить модель с явным разделением spam/dangerous в данных. Порог `THR_DANGEROUS=0.75` лечит только симптом.
+- Тело запроса и фото читаются до проверки очереди, так что одновременные загрузки по 32 МБ не ограничены `MAX_QUEUE`
+  и могут довести под до OOM. Пока это закрывает лимит соединений на ingress. Вернуться, если начнутся OOMKilled.
